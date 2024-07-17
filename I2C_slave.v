@@ -3,7 +3,6 @@ module I2C_slave(
 	output	reg	 [7:0]o_reg_addr,
 	output	reg  [7:0]o_wr_data,
 	output	reg  	  o_rd_done,
-	output  reg       sda_out_en,
 	input	wire	  clk,
 	input	wire	  rst_n,
 	input	wire	  scl,
@@ -14,10 +13,11 @@ module I2C_slave(
 
 //state and sycn signal
 reg  [10:0]state, next_state;
-reg	 [7:0]offset, in_data;
+reg	 [7:0]offset, in_data, out_data, temp_reg;
 reg	 [6:0]device_addr;
-reg		  sda_ff1, sda_ff2;
-reg		  scl_ff1, scl_ff2;
+reg		  sda_ff1, sda_ff2, sda_ff3;
+reg		  scl_ff1, scl_ff2, scl_ff3;
+reg		  backup_reg;
 
 //fix temp read reg
 reg  [7:0]fix_temp_data;
@@ -56,23 +56,25 @@ assign ST_STOP	       = state[9];
 assign ST_START	       = state[10];
 
 
-assign sync_pos_sda = sda_ff1 & ~sda_ff2;
-assign sync_neg_sda = ~sda_ff1 & sda_ff2;
-assign sync_pos_scl = scl_ff1 & ~scl_ff2;
-assign sync_neg_scl = ~scl_ff1 & scl_ff2;
+assign sync_pos_sda =  sda_ff2 & ~sda_ff3;
+assign sync_neg_sda = ~sda_ff2 &  sda_ff3;
+assign sync_pos_scl =  scl_ff2 & ~scl_ff3;
+assign sync_neg_scl = ~scl_ff2 &  scl_ff3;
 
 assign sda_in = sda;
-assign sda = sda_out_en ? sda_out : 1'bz;
+assign sda = sda_out ? 1'bz : 1'b0;
 
 always @(posedge clk or negedge rst_n) begin //sync SDA
 	if(!rst_n) begin
 		sda_ff1 <= 1'b0;
 		sda_ff2 <= 1'b0;
+		sda_ff3 <= 1'b0;
 	end
 	else begin
 	
 		sda_ff1 <= sda_in;
 		sda_ff2 <= sda_ff1;
+		sda_ff3 <= sda_ff2;
 	end
 end
 
@@ -80,10 +82,12 @@ always @(posedge clk or negedge rst_n) begin //sync SCL
 	if(!rst_n) begin
 		scl_ff1 <= 1'b0;
 		scl_ff2 <= 1'b0;
+		scl_ff3 <= 1'b0;
 	end
 	else begin
 		scl_ff1 <= scl;
 		scl_ff2 <= scl_ff1;
+		scl_ff3 <= scl_ff2;
 	end
 end
 
@@ -173,17 +177,6 @@ end
 
 always @(posedge clk or negedge rst_n) begin
 	if(!rst_n)
-		sda_out_en <= 1'b0;
-	else if((ST_OUT_DATA == 1'b1) || (ST_ADDR_ACK == 1'b1) )
-		sda_out_en <= 1'b1;
-	else if((ST_OFFSET_ACK == 1'b1) || (ST_IN_DATA_ACK == 1'b1) )
-		sda_out_en <= 1'b1;
-	else
-		sda_out_en <= 1'b0;
-end
-
-always @(posedge clk or negedge rst_n) begin
-	if(!rst_n)
 		is_nonACK <= 1'b0;
 	else if((ST_IDLE == 1'b1) || (ST_OUT_DATA == 1'b1))
 		is_nonACK <= 1'b0;
@@ -198,9 +191,11 @@ always @(posedge clk or negedge rst_n) begin
 		is_restart <= 4'd0;
 	else if(ST_IDLE)
 		is_restart <= 4'd0;
+	else if(ST_START)
+		is_restart <= 4'd0;
 	else if ((sync_pos_scl == 1'b1) && (ST_ADDR == 1'd1))
 		is_restart <= 1'b0;
-	else if((sync_neg_sda == 1'b1) && (scl == 1'b1) && (sda_out_en == 1'b0))
+	else if((sync_neg_sda == 1'b1) && (scl == 1'b1) && (ST_IN_DATA == 1'b1))
 		is_restart <= 1'b1;
 	else	
 		is_restart <= is_restart;
@@ -211,11 +206,11 @@ always @(posedge clk or negedge rst_n) begin //counter add
 		bit_counter <= 3'd0;
 	else if(ST_IDLE)
 		bit_counter <= 3'd0;
-	else if((ADDR_ACK == 1'B0) || (OFFSET_ACK == 1'B0))
+	else if((ADDR_ACK == 1'b1) || (OFFSET_ACK == 1'b1))
 		bit_counter <= 3'd0;
-	else if((IN_DATA_ACK == 1'B0) || (OUT_DATA_ACK == 1'B0))
+	else if((IN_DATA_ACK == 1'b1) || (OUT_DATA_ACK == 1'b1))
 		bit_counter <= 3'd0;
-	else if ((is_restart == 1'b1) && (sync_neg_scl == 1'b1))
+	else if((is_restart == 1'b1) && (sync_neg_scl == 1'b1))
 		bit_counter <= 3'd0;
 	else if((ST_ADDR == 1'b1) && (sync_neg_scl == 1'b1)) 
 		bit_counter <= bit_counter + 3'd1;
@@ -234,8 +229,6 @@ always @(posedge clk or negedge rst_n) begin //ADDR
 		device_addr <= 7'd0;
 	else if(ST_IDLE)
 		device_addr <= 7'd0;
-	else if ((is_restart == 1'b1) && (sync_neg_scl == 1'b1))
-		device_addr <= 7'd0;
 	else if((ST_ADDR == 1'b1) && (sync_pos_scl == 1'b1) && (bit_counter < 7)) 
 		device_addr <= {device_addr[5:0], sda_in};
 	else 
@@ -253,45 +246,75 @@ always @(posedge clk or negedge rst_n) begin //OFFSET
 		offset <= offset;
 end
 
-always @(posedge clk or negedge rst_n) begin //DATA IN
+always @(posedge clk or negedge rst_n) begin //temp reg
 	if(!rst_n)
-		in_data <= 8'd0;
-	else if(ST_IDLE)
-		in_data <= 8'd0;
+		temp_reg <= 8'd0;
+	else if(ST_OFFSET_ACK)
+		temp_reg <= i_rd_data;
 	else if((ST_IN_DATA == 1'b1) && (sync_pos_scl == 1'b1)) 
-		in_data <= {in_data[6:0], sda_in};
+		temp_reg <= {temp_reg[6:0], sda_in};
+	else if((ST_IN_DATA == 1'b1) && (sync_neg_scl == 1'b1) && (is_restart == 1'b1)) 
+		temp_reg <= {backup_reg, temp_reg[7:1]};
+	else if((ST_OUT_DATA == 1'b1) && (sync_neg_scl == 1'b1))
+		temp_reg <= temp_reg << 1;
 	else 
-		in_data <= in_data;
+		temp_reg <= temp_reg;
+end
+
+always @(posedge clk or negedge rst_n) begin //backup reg
+	if(!rst_n)
+		backup_reg <= 1'b0;
+	else if((ST_IN_DATA == 1'b1) && (sync_pos_scl == 1'b1)) 
+		backup_reg <= temp_reg[7];
+	else 
+		backup_reg <= backup_reg;
+end
+
+always @(posedge clk or negedge rst_n) begin //out data
+	if(!rst_n)
+		o_wr_data <= 8'd0;
+	else if(ST_IN_DATA_ACK)
+		o_wr_data <= temp_reg;
+	else 
+		o_wr_data <= o_wr_data;
+end
+
+always @(posedge clk or negedge rst_n) begin //out data
+	if(!rst_n)
+		o_wr_en <= 1'b0;
+	else if(ST_IDLE)
+		o_wr_en <= 1'b0;
+	else if(ST_IN_DATA_ACK)
+		o_wr_en <= 1'b1;
+	else if(ST_STOP)
+		o_wr_en <= 1'b0;
+	else 
+		o_wr_data <= o_wr_data;
 end
 
 always @(posedge clk or negedge rst_n) begin //DATA OUT
 	if(!rst_n)
-		sda_out <= 1'd0;
+		sda_out <= 1'b1;
 	else if(ST_IDLE)
-		sda_out <= 1'd0;
+		sda_out <= 1'b1;
 	else if((ST_OUT_DATA == 1'b1) && (sync_pos_scl == 1'b1))
-		sda_out <= fix_temp_data[7];
-	else if ((device_addr == 7'b0000101)&& (sync_neg_scl == 1'd1) && (ST_ADDR == 1'b1) && (bit_counter == 3'd7))
+		sda_out <= temp_reg[7];
+	else if ((device_addr == i_slave_addr)&& (sync_neg_scl == 1'd1) && (ST_ADDR == 1'b1) && (bit_counter == 3'd7))
 		sda_out <= 1'b0;
-	else if ((device_addr != 7'b0000101)&& (sync_neg_scl == 1'd1) && (ST_ADDR == 1'b1) && (bit_counter == 3'd7))
+	else if ((device_addr != i_slave_addr)&& (sync_neg_scl == 1'd1) && (ST_ADDR == 1'b1) && (bit_counter == 3'd7))
 		sda_out <= 1'b1; 
 	else if ((sync_neg_scl == 1'd1) && (ST_OFFSET == 1'b1) && (bit_counter == 3'd7))
 		sda_out <= 1'b0; 
 	else if ((sync_neg_scl == 1'd1) && (ST_IN_DATA == 1'b1) && (bit_counter == 3'd7))
 		sda_out <= 1'b0; 
+	else if ((ST_ADDR_ACK == 1'b1) && (sync_pos_scl == 1'b1))
+		sda_out <= 1'b1; 
+	else if ((ST_OFFSET_ACK == 1'b1) && (sync_pos_scl == 1'b1))
+		sda_out <= 1'b1; 
+	else if ((ST_IN_DATA_ACK == 1'b1) && (sync_pos_scl == 1'b1))
+		sda_out <= 1'b1;  
 	else 
 		sda_out <= sda_out;
-end
-
-always @(posedge clk or negedge rst_n) begin //load temp reg
-	if(!rst_n)
-		fix_temp_data <= 8'd0;
-	else if((ST_OFFSET_ACK == 1'b1) && (sync_neg_scl == 1'b1))
-		fix_temp_data <= i_rd_data;
-	else if((ST_OUT_DATA == 1'b1) && (sync_neg_scl == 1'b1))
-		fix_temp_data <= fix_temp_data << 1;
-	else
-		fix_temp_data <= fix_temp_data;
 end
 
 always @(posedge clk or negedge rst_n) begin // r/w signal
@@ -304,5 +327,7 @@ always @(posedge clk or negedge rst_n) begin // r/w signal
 	else 
 		rw_signal <= rw_signal;
 end
+
+
 
 endmodule
