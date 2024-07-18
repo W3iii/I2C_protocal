@@ -8,7 +8,7 @@ I2C（Inter-Integrated Circuit），中文稱為"兩線式串行總線"，是一
 多主多從架構：I2C允許多個主裝置（發送命令的裝置）和多個從裝置（接收命令的裝置）在同一條線上共存。
 地址化：每個從裝置都有一個唯一的地址，主裝置可以通過地址來選擇與哪個從裝置通信。
 同步通信：所有的數據傳輸都是在時鐘信號的控制下進行，確保數據的正確性和時序的一致性。
-![22](https://hackmd.io/_uploads/rkG0JWIOA.png)
+![i2c data flow](https://github.com/W3iii/I2C_protocal/blob/master/image/i2c%20data%20flow.png)
 
 
 模擬方式
@@ -50,9 +50,9 @@ one-hot state machinec優點
 獨熱碼常常被用來表示一個有限狀態機的狀態。如果使用二進制或格雷碼來代表狀態，則需要用到解碼器才能得知該碼代表的狀態。使用獨熱碼來代表狀態的話，則不需要解碼器，因爲若第𝑛個位元爲1，就代表機器目前在第𝑛個狀態。
 
 ## slave state flow
-![1.drawio](https://hackmd.io/_uploads/SJJuYxLdA.png)
+![slave state](https://github.com/W3iii/I2C_protocal/blob/master/image/slave%20state.drawio.png)
 ## master state flow
-![2.drawio](https://hackmd.io/_uploads/SJrute8_0.png)
+![master state](https://github.com/W3iii/I2C_protocal/blob/master/image/master%20state.drawio.png)
 
 project block
 ---
@@ -64,4 +64,4 @@ project block
  - testbed: generate main clk以及下I2C_go的指令，告訴master start。
 
 ## module關係架構圖
-![33](https://hackmd.io/_uploads/SJQ8WZ8_A.png)
+![module](https://github.com/W3iii/I2C_protocal/blob/master/image/module.png)
