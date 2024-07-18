@@ -13,7 +13,7 @@ I2C（Inter-Integrated Circuit），中文稱為"兩線式串行總線"，是一
 
 模擬方式
 ---
-使用verilog撰寫並模擬I2C protocal運作方式。使用FSM模擬master與slave module。非為三大always block。  
+使用verilog撰寫並模擬I2C protocal運作方式。使用FSM模擬master與slave module。分為三大always block。  
  - 第一個sequencial logic 做state與next state的切換。
  - 第二部分為combinational logic做next state的assign。
  - 第三部分的sequencial logic做當下state的input output動作。  
