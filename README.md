@@ -65,3 +65,6 @@ project block
 
 ## module關係架構圖
 ![module](https://github.com/W3iii/I2C_protocal/blob/master/image/module.png)
+
+## simulate waveform
+![simulate waveform](https://github.com/W3iii/I2C_protocal/blob/master/image/simulate%20waveform.png)
