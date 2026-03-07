@@ -1,12 +1,10 @@
 # I²C Protocol — Master / Slave Module 模擬專案
 
-<!-- Badges：僅在 HTML / GitHub 顯示，PDF 渲染時略過 -->
-::: {.content-visible when-format="html"}
 ![Language](https://img.shields.io/badge/Language-Verilog%20HDL-blue?style=flat-square)
 ![Protocol](https://img.shields.io/badge/Protocol-I²C-orange?style=flat-square)
 ![FSM](https://img.shields.io/badge/FSM-One--Hot-green?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-Simulation%20Complete-brightgreen?style=flat-square)
-:::
+
 
 > 本專案為實習期間以 **Verilog HDL** 實作 I²C（Inter-Integrated Circuit）通訊協議的 Master 與 Slave 模組完整模擬。  
 > 設計涵蓋 **One-Hot 有限狀態機（FSM）**、雙向 open-drain `SDA` 匯流排驅動、8-bit Register Map 存取，以及透過 Testbed 進行寫入後讀回的端對端驗證。
